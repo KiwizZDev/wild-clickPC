@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Wild Click</title>
+<style>
+    body {
+        font-family: 'Arial', sans-serif;
+        text-align: center;
+        margin: 0;
+        padding: 0;
+        color: #fff;
+        background-color: #013220; /* vert foncé */
+        min-height: 100vh;
+        overflow-x: hidden;
+    }
+
+    .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.3);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        z-index: 10; /* permet de cliquer sur le bouton */
+    }
+
+    h1 {
+        font-size: 60px;
+        font-family: 'Comic Sans MS', cursive, sans-serif;
+        text-shadow: 2px 2px #000;
+    }
+
+    button {
+        font-size: 20px;
+        padding: 12px 25px;
+        margin: 10px;
+        cursor: pointer;
+        border: none;
+        border-radius: 10px;
+        background-color: #228B22;
+        color: #fff;
+        text-shadow: 1px 1px #000;
+        transition: transform 0.2s;
+        position: relative;
+    }
+
+    button:hover {
+        transform: scale(1.05);
+    }
+
+    #gameContainer {
+        display: none;
+        padding-top: 50px;
+        min-height: 100vh;
+        position: relative;
+    }
+
+    #points, #coins {
+        font-size: 28px;
+        margin: 15px;
+        text-shadow: 1px 1px #000;
+    }
+
+    #levelContainer {
+        margin: 10px auto;
+    }
+
+    .tabs {
+        margin-top: 20px;
+    }
+
+    .tabButton {
+        font-size: 18px;
+        padding: 8px 20px;
+        margin: 5px;
+        background-color: #00008B; /* bleu onglet */
+        border-radius: 8px;
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .tabButton img {
+        width: 25px;
+        margin-right: 5px;
+    }
+
+    .tabContent {
+        display: none;
+        margin-top: 20px;
+    }
+
+    .shop {
+        margin-top: 20px;
+        padding: 20px;
+        background-color: #004080; /* bleu contenu shop */
+        border-radius: 15px;
+        display: inline-block;
+    }
+
+    .shop h2 {
+        margin-bottom: 15px;
+    }
+
+    .multiplierBox {
+        display: inline-block;
+        width: 150px;
+        height: 70px;
+        margin: 10px;
+        background-color: #1E90FF;
+        border-radius: 10px;
+        cursor: pointer;
+        padding: 10px;
+        box-shadow: 0 0 5px #000;
+        transition: transform 0.2s, background-color 0.2s;
+    }
+
+    .multiplierBox:hover {
+        transform: scale(1.05);
+        background-color: #3399FF;
+    }
+
+    .multiplierBox p {
+        margin: 5px 0;
+    }
+
+    .coin {
+        width: 20px;
+        height: 20px;
+        background: gold;
+        border-radius: 50%;
+        position: absolute;
+        animation: fall 1s linear forwards;
+        box-shadow: 0 0 5px #ffd700;
+    }
+
+    @keyframes fall {
+        0% { transform: translateY(0) scale(1); }
+        100% { transform: translateY(100px) scale(0.5); opacity: 0; }
+    }
+</style>
+</head>
+<body>
+
+<div class="overlay" id="startScreen">
+    <h1>Wild Click</h1>
+    <button id="startButton">Commencer</button>
+</div>
+
+<div id="gameContainer">
+    <div id="points">Points : 0</div>
+    <div id="coins">COINS : 0</div>
+
+    <div id="levelContainer">
+        <p>Niveau : <span id="levelNumber">0</span></p>
+        <div id="levelBar" style="width: 300px; height: 20px; background-color: #555; border-radius: 10px; margin: auto;">
+            <div id="levelProgress" style="width: 0%; height: 100%; background-color: #1E90FF; border-radius: 10px;"></div>
+        </div>
+    </div>
+
+    <button id="clickButton">🦁 Clique ici !</button>
+
+    <div class="tabs">
+        <button class="tabButton" id="tabUpgrades">Améliorations</button>
+        <button class="tabButton" id="tabShop">
+            <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Shop Logo"> Shop
+        </button>
+    </div>
+
+    <div class="tabContent" id="upgrades">
+        <div class="shop">
+            <h2>Améliorations</h2>
+            <button id="upgradeClick">+1 point par click (Coût : 10 points)</button>
+            <button id="autoClick">Auto-click +1/sec (Coût : 50 points)</button>
+        </div>
+    </div>
+
+    <div class="tabContent" id="multipliers">
+        <div class="shop">
+            <h2>Multiplicateurs</h2>
+            <div id="multiplierButtons"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const startButton = document.getElementById('startButton');
+    const startScreen = document.getElementById('startScreen');
+    const gameContainer = document.getElementById('gameContainer');
+    const clickButton = document.getElementById('clickButton');
+    const pointsDisplay = document.getElementById('points');
+    const coinsDisplay = document.getElementById('coins');
+    const levelNumber = document.getElementById('levelNumber');
+    const levelProgress = document.getElementById('levelProgress');
+    const upgradeClickButton = document.getElementById('upgradeClick');
+    const autoClickButton = document.getElementById('autoClick');
+    const multiplierButtonsDiv = document.getElementById('multiplierButtons');
+    const tabUpgrades = document.getElementById('tabUpgrades');
+    const tabShop = document.getElementById('tabShop');
+
+    let points = parseInt(localStorage.getItem('points')) || 0;
+    let totalClicks = parseInt(localStorage.getItem('totalClicks')) || 0;
+    let pointsPerClick = parseInt(localStorage.getItem('pointsPerClick')) || 1;
+    let autoClickLevel = parseInt(localStorage.getItem('autoClickLevel')) || 0;
+    let shopPoints = parseInt(localStorage.getItem('shopPoints')) || 0;
+    let purchasedMultipliers = JSON.parse(localStorage.getItem('purchasedMultipliers')) || {};
+    let level = Math.floor(totalClicks / 1000);
+
+    const multipliers = [
+        { clicks: 1000, factor: 1.0, cost: 1 },
+        { clicks: 2000, factor: 2.0, cost: 2 },
+        { clicks: 3000, factor: 2.5, cost: 3 },
+        { clicks: 5000, factor: 3.5, cost: 5 },
+        { clicks: 10000, factor: 8.0, cost: 8 },
+        { clicks: 100000, factor: 10.0, cost: 10 }
+    ];
+
+    // Commencer
+    startButton.addEventListener('click', () => {
+        startScreen.style.display = 'none';
+        gameContainer.style.display = 'block';
+        openTab('upgrades');
+    });
+
+    // Onglets
+    tabUpgrades.addEventListener('click', () => openTab('upgrades'));
+    tabShop.addEventListener('click', () => openTab('multipliers'));
+
+    function openTab(tabName) {
+        document.querySelectorAll('.tabContent').forEach(tab => tab.style.display = 'none');
+        document.getElementById(tabName).style.display = 'block';
+    }
+    openTab('upgrades');
+
+    function saveGame() {
+        localStorage.setItem('points', points);
+        localStorage.setItem('totalClicks', totalClicks);
+        localStorage.setItem('pointsPerClick', pointsPerClick);
+        localStorage.setItem('autoClickLevel', autoClickLevel);
+        localStorage.setItem('shopPoints', shopPoints);
+        localStorage.setItem('purchasedMultipliers', JSON.stringify(purchasedMultipliers));
+        localStorage.setItem('level', level);
+    }
+
+    function updateDisplay() {
+        pointsDisplay.textContent = `Points : ${points}`;
+        coinsDisplay.textContent = `COINS : ${shopPoints}`;
+        upgradeClickButton.textContent = `+1 point par click (Coût : ${10 * pointsPerClick} points)`;
+        autoClickButton.textContent = `Auto-click +1/sec (Coût : ${50 * (autoClickLevel + 1)} points)`;
+        renderMultipliers();
+    }
+
+    function renderMultipliers() {
+        multiplierButtonsDiv.innerHTML = '';
+        multipliers.forEach(m => {
+            if(!purchasedMultipliers[m.clicks]) {
+                const box = document.createElement('div');
+                box.classList.add('multiplierBox');
+                box.innerHTML = `<p>x${m.factor}</p><p>Coût : ${m.cost} COINS</p>`;
+                box.addEventListener('click', () => {
+                    if(shopPoints >= m.cost) {
+                        shopPoints -= m.cost;
+                        pointsPerClick *= m.factor;
+                        purchasedMultipliers[m.clicks] = true;
+                        updateDisplay();
+                        saveGame();
+                        alert(`Multiplicateur x${m.factor} acheté !`);
+                    } else {
+                        alert("Pas assez de COINS !");
+                    }
+                });
+                multiplierButtonsDiv.appendChild(box);
+            }
+        });
+    }
+
+    function spawnCoin() {
+        const coin = document.createElement('div');
+        coin.classList.add('coin');
+        const rect = clickButton.getBoundingClientRect();
+        coin.style.left = rect.left + rect.width/2 - 10 + 'px';
+        coin.style.top = rect.top + 'px';
+        document.body.appendChild(coin);
+        setTimeout(() => coin.remove(), 1000);
+    }
+
+    function updateLevel() {
+        const newLevel = Math.floor(totalClicks / 1000);
+        if(newLevel > level) {
+            level = newLevel;
+            shopPoints += 1;
+            spawnCoin();
+        }
+        const progress = totalClicks % 1000;
+        levelNumber.textContent = level;
+        levelProgress.style.width = (progress / 1000 * 100) + '%';
+    }
+
+    clickButton.addEventListener('click', () => {
+        points += pointsPerClick;
+        totalClicks++;
+        updateLevel();
+        updateDisplay();
+        saveGame();
+    });
+
+    upgradeClickButton.addEventListener('click', () => {
+        const cost = 10 * pointsPerClick;
+        if(points >= cost) { points -= cost; pointsPerClick++; updateDisplay(); saveGame(); }
+        else alert("Pas assez de points !");
+    });
+
+    autoClickButton.addEventListener('click', () => {
+        const cost = 50 * (autoClickLevel + 1);
+        if(points >= cost) { points -= cost; autoClickLevel++; updateDisplay(); saveGame(); }
+        else alert("Pas assez de points !");
+    });
+
+    setInterval(() => {
+        points += autoClickLevel;
+        updateDisplay();
+        saveGame();
+    }, 1000);
+
+    updateLevel();
+    updateDisplay();
+});
+</script>
+
+</body>
+</html>
